@@ -48,3 +48,17 @@ Thumbs.db
 *.mov
 *.wmv
 
+
+# ---- observability-lab ----
+# dependencias e artefatos locais da app
+npm-debug.log*
+
+# ambiente/segredos locais (o lab usa so credenciais padrao versionadas)
+.env
+*.local
+
+# editores / SO
+.vscode/
+
+# rascunho pessoal de post, fora do lab
+resumo-linkedin.html

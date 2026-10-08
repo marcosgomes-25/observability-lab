@@ -1,0 +1,60 @@
+{
+  "uid": "tempconv-logs-traces",
+  "title": "Temperatura - Logs & Traces",
+  "tags": ["lab", "tempconv", "loki", "tempo"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "10s",
+  "time": { "from": "now-30m", "to": "now" },
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Requisicoes/s por span (span-metrics do Tempo)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "sum by (span_name) (rate(traces_spanmetrics_calls_total{service=\"tempconv\"}[1m]))", "legendFormat": "{{span_name}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] }
+    },
+    {
+      "type": "timeseries",
+      "title": "Latencia p95 por span (span-metrics)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.95, sum by (span_name, le) (rate(traces_spanmetrics_latency_bucket{service=\"tempconv\"}[5m])))", "legendFormat": "{{span_name}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] }
+    },
+    {
+      "type": "table",
+      "title": "Traces recentes (tempconv)",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "tempo", "uid": "tempo" },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "tempo", "uid": "tempo" }, "queryType": "traceql", "query": "{ resource.service.name = \"tempconv\" }", "limit": 20, "tableType": "traces" }
+      ]
+    },
+    {
+      "type": "logs",
+      "title": "Erros (level=error) - tempconv",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "loki", "uid": "loki" }, "expr": "{compose_service=\"tempconv\"} | json | level=`error`", "queryType": "range" }
+      ],
+      "options": { "showTime": true, "wrapLogMessage": true, "dedupStrategy": "none", "enableLogDetails": true }
+    },
+    {
+      "type": "logs",
+      "title": "Stream de logs - tempconv (todos)",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 17 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "loki", "uid": "loki" }, "expr": "{compose_service=\"tempconv\"}", "queryType": "range" }
+      ],
+      "options": { "showTime": true, "wrapLogMessage": true, "dedupStrategy": "none", "enableLogDetails": true }
+    }
+  ]
+}

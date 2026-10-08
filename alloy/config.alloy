@@ -1,0 +1,62 @@
+// Coleta os logs de TODOS os containers Docker do host e envia para o Loki.
+
+logging {
+  level  = "warn"
+  format = "logfmt"
+}
+
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "compose_service"
+  }
+  rule {
+    target_label = "job"
+    replacement  = "docker"
+  }
+}
+
+loki.source.docker "containers" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.containers.output
+  forward_to = [loki.process.default.receiver]
+}
+
+// Logs da app tempconv sao JSON: extrai "level" como label e "trace_id" como metadata.
+loki.process "default" {
+  stage.match {
+    selector = "{compose_service=\"tempconv\"}"
+
+    stage.json {
+      expressions = {
+        level    = "level",
+        trace_id = "trace_id",
+      }
+    }
+    stage.labels {
+      values = { level = "" }
+    }
+    stage.structured_metadata {
+      values = { trace_id = "" }
+    }
+  }
+
+  forward_to = [loki.write.default.receiver]
+}
+
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

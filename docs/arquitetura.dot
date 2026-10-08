@@ -1,0 +1,84 @@
+digraph tempconv {
+  graph [fontname="Helvetica", fontsize=12, nodesep=0.45, ranksep=0.9, bgcolor="transparent", fontcolor="#8E9BAA", compound=true];
+  node  [fontname="Helvetica", fontsize=11, shape=box, style="rounded,filled", color="#5B6B7C", fillcolor="#1F2A36", fontcolor="#E7ECF2", penwidth=1.2];
+  edge  [fontname="Helvetica", fontsize=9, color="#8E9BAA", fontcolor="#A6B1BE", arrowsize=0.7];
+
+  // ---------------- clientes ----------------
+  subgraph cluster_clients {
+    label="Clientes"; style="rounded,dashed"; color="#45525F";
+    user    [label="Usuario\n(navegador)", shape=ellipse, fillcolor="#2A3644"];
+    loadgen [label="tempconv-loadgen\ncurl a cada 3s\n(~6% requisicoes invalidas)", fillcolor="#2A3644"];
+  }
+
+  // ---------------- aplicacao ----------------
+  subgraph cluster_app {
+    label="Aplicacao (Node.js 20 / Express)"; style="rounded"; color="#1E88E5"; penwidth=1.5;
+    tempconv [label="tempconv :3000 (host :8090)\nGET /  /convert  /health  /metrics\nprom-client (histograma http_request_duration_seconds)\nOpenTelemetry SDK (auto-instrumentation)\nlogs JSON c/ trace_id", fillcolor="#123A5C", color="#1E88E5", penwidth=2];
+  }
+
+  // ---------------- stack Grafana ----------------
+  subgraph cluster_lgtm {
+    label="Observabilidade (Grafana stack)"; style="rounded"; color="#45525F";
+    prometheus [label="Prometheus :9090\nscrape 15s, retencao 15d\nremote-write receiver", fillcolor="#3A2618", color="#E6522C"];
+    tempo      [label="Grafana Tempo :3200\nOTLP :4317/:4318\nmetrics-generator\n(span-metrics, service-graph)", fillcolor="#3A3018", color="#E0A54B"];
+    alloy      [label="Grafana Alloy\ndescoberta via docker.sock\nextrai level + trace_id (so tempconv)", fillcolor="#2B2440", color="#9A8FEA"];
+    loki       [label="Loki :3100", fillcolor="#2B2440", color="#9A8FEA"];
+    exporters  [label="node-exporter (host)\ncAdvisor (containers)", fillcolor="#3A2618", color="#E6522C"];
+  }
+
+  // ---------------- Zabbix 8 ----------------
+  subgraph cluster_zabbix {
+    label="Zabbix 8.0 (trunk / rc1)"; style="rounded"; color="#D40000"; penwidth=1.5;
+    zbx_server [label="zabbix-server :10051\nHTTP agent -> /metrics (30s)\n+ itens dependentes (Prometheus pattern)\nitens calculados: rate(), histogram_quantile()\nAPM: throughput, erro, p50/p95/p99, Apdex\ncenario web sintetico (1m)", fillcolor="#4A1414", color="#D40000", penwidth=2];
+    zbx_web    [label="zabbix-web :8080\nfrontend + API JSON-RPC", fillcolor="#4A1414", color="#D40000"];
+    zbx_agent  [label="zabbix-agent2", fillcolor="#4A1414", color="#D40000"];
+    postgres   [label="PostgreSQL 16", shape=cylinder, fillcolor="#1C2E40", color="#336791"];
+  }
+
+  // ---------------- visualizacao ----------------
+  grafana [label="Grafana :3000\ndatasources: Prometheus, Loki, Tempo, Zabbix\ndashboards: App Lab, APM (Zabbix), Logs & Traces, Arquitetura", fillcolor="#3A2A10", color="#F46800", penwidth=2];
+
+  // ---------------- trafego ----------------
+  user    -> tempconv [label="HTTP", color="#E7ECF2", penwidth=1.5];
+  loadgen -> tempconv [label="GET /convert", color="#E7ECF2", penwidth=1.5];
+
+  // ---------------- metricas ----------------
+  prometheus -> tempconv  [label="scrape /metrics", color="#E6522C", dir=back, arrowtail=normal];
+  prometheus -> exporters [label="scrape", color="#E6522C", dir=back, arrowtail=normal];
+  prometheus -> tempo     [label="scrape :3200/metrics", color="#E6522C", dir=back, arrowtail=normal];
+  tempo -> prometheus     [label="remote_write\nspan-metrics + service-graph", color="#E6522C", style=dashed];
+
+  // ---------------- traces ----------------
+  tempconv -> tempo [label="OTLP/HTTP traces", color="#E0A54B", penwidth=1.5];
+
+  // ---------------- logs ----------------
+  alloy -> tempconv [label="le stdout JSON via docker.sock\n(todos os containers)", color="#9A8FEA", dir=back, arrowtail=normal];
+  alloy -> loki     [label="push", color="#9A8FEA"];
+
+  // ---------------- Zabbix ----------------
+  zbx_server -> tempconv [label="HTTP agent /metrics\n+ web scenario\n(X-Synthetic: 1)", color="#D40000", dir=back, arrowtail=normal, penwidth=1.5];
+  zbx_server -> zbx_agent [label="passivo :10050", color="#D40000"];
+  zbx_server -> postgres  [label="SQL", color="#336791"];
+  zbx_web    -> postgres  [label="SQL", color="#336791"];
+  zbx_web    -> zbx_server [label="trapper", color="#D40000", style=dashed];
+
+  // ---------------- consultas do Grafana ----------------
+  grafana -> prometheus [label="PromQL", color="#F46800", style=dashed];
+  grafana -> tempo      [label="TraceQL", color="#F46800", style=dashed];
+  grafana -> loki       [label="LogQL", color="#F46800", style=dashed];
+  grafana -> zbx_web    [label="API JSON-RPC\n(plugin Zabbix)", color="#F46800", style=dashed];
+
+  // ---------------- legenda ----------------
+  subgraph cluster_legend {
+    label="Legenda"; style="rounded,dashed"; color="#45525F"; fontsize=10;
+    node [shape=plaintext, style="", fillcolor="transparent", fontsize=10, fontcolor="#8E9BAA"];
+    legend [label=<
+      <TABLE BORDER="0" CELLSPACING="2">
+        <TR><TD ALIGN="LEFT"><FONT COLOR="#E6522C">&#9473;&#9473;</FONT> metricas</TD></TR>
+        <TR><TD ALIGN="LEFT"><FONT COLOR="#E0A54B">&#9473;&#9473;</FONT> traces</TD></TR>
+        <TR><TD ALIGN="LEFT"><FONT COLOR="#9A8FEA">&#9473;&#9473;</FONT> logs</TD></TR>
+        <TR><TD ALIGN="LEFT"><FONT COLOR="#D40000">&#9473;&#9473;</FONT> Zabbix (coleta + sintetico)</TD></TR>
+        <TR><TD ALIGN="LEFT"><FONT COLOR="#F46800">- - -</FONT> consultas do Grafana</TD></TR>
+      </TABLE>>];
+  }
+}
