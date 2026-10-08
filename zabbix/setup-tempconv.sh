@@ -9,8 +9,17 @@ set -euo pipefail
 ZBX_URL="${ZBX_URL:-http://localhost:8080/api_jsonrpc.php}"
 # credenciais: variaveis de ambiente ou o .env da raiz do projeto (ver .env.example)
 ENV_FILE="$(cd "$(dirname "$0")/.." && pwd)/.env"
-# shellcheck disable=SC1090
-[ -f "$ENV_FILE" ] && { set -a; . "$ENV_FILE"; set +a; }
+# le KEY=VALUE sem executar o arquivo (o .env segue a sintaxe do compose, nao do shell)
+# e sem sobrescrever variaveis ja definidas no ambiente
+if [ -f "$ENV_FILE" ]; then
+  while IFS= read -r line || [ -n "$line" ]; do
+    [[ $line =~ ^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]] || continue
+    k=${BASH_REMATCH[1]}; v=${BASH_REMATCH[2]}
+    v=${v%$'\r'}
+    [[ $v =~ ^\"(.*)\"$ || $v =~ ^\'(.*)\'$ ]] && v=${BASH_REMATCH[1]}
+    [ -z "${!k+x}" ] && export "$k=$v"
+  done < "$ENV_FILE"
+fi
 ZBX_USER="${ZBX_USER:-${ZABBIX_API_USER:-Admin}}"
 ZBX_PASS="${ZBX_PASS:-${ZABBIX_API_PASSWORD:-}}"
 [ -n "$ZBX_PASS" ] || { echo "ERRO: defina ZABBIX_API_PASSWORD no .env (veja .env.example) ou exporte ZBX_PASS" >&2; exit 1; }

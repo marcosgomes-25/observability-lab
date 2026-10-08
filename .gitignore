@@ -53,12 +53,12 @@ Thumbs.db
 # dependencias e artefatos locais da app
 npm-debug.log*
 
-# ambiente/segredos locais (o lab usa so credenciais padrao versionadas)
+# credenciais locais (modelo versionado em .env.example)
 .env
 *.local
 
 # editores / SO
 .vscode/
 
-# rascunho pessoal de post, fora do lab
+# arquivos locais fora do lab
 resumo-linkedin.html
